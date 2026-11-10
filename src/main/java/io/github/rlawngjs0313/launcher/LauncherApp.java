@@ -209,7 +209,7 @@ public final class LauncherApp extends Application {
             boolean accepted = onUi(() -> {
                 ButtonType update = new ButtonType("업데이트 후 재시작", ButtonBar.ButtonData.OK_DONE);
                 ButtonType later = new ButtonType("나중에", ButtonBar.ButtonData.CANCEL_CLOSE);
-                String text = BuildInfo.VERSION + " → " + release.version() + "\n다운로드: " + Math.round(release.size() / 1024.0 / 1024.0) + " MB\n설정·계정·게임 파일은 유지됩니다.\n\n" + release.notes();
+                String text = BuildInfo.VERSION + " → " + release.version() + "\n새 설치 파일: " + Math.round(release.size() / 1024.0 / 1024.0) + " MB\n필요하면 복구용 현재 버전 설치 파일도 받습니다.\n설정·계정·게임 파일은 유지됩니다.\n\n" + release.notes();
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION, text, update, later); alert.initOwner(stage); alert.setHeaderText("새 Game Launcher 버전이 있습니다");
                 alert.getDialogPane().setPrefWidth(650);
                 activeDialog = alert; try { return alert.showAndWait().orElse(later) == update; } finally { activeDialog = null; }

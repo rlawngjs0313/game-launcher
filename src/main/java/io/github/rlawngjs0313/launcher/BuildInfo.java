@@ -21,7 +21,7 @@ final class BuildInfo {
     }
     static Path installation() throws IOException {
         String home = System.getProperty("game.launcher.home");
-        if (!GameInstaller.os().equals("windows") || !GameInstaller.arch().equals("x64") || home == null) throw new IOException("자동 교체는 릴리즈에서 받은 Windows x64 앱에서 사용할 수 있습니다.");
+        if (!GameInstaller.os().equals("windows") || !GameInstaller.arch().equals("x64") || home == null) throw new IOException("자동 업데이트는 릴리즈에서 설치한 Windows x64 앱에서 사용할 수 있습니다.");
         Path root = Path.of(home).toRealPath();
         Properties marker = new Properties();
         try (InputStream input = Files.newInputStream(root.resolve("launcher-release.properties"))) { marker.load(input); }

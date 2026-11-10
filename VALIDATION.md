@@ -8,7 +8,8 @@
 * JavaFX 및 외부 라이브러리를 포함한 타입 검사와 버전 리소스 생성까지 통과했습니다.
 * GitHub Actions workflow YAML 구문 파싱 통과.
 * Windows 실행, Microsoft 로그인, NeoForge 설치, 게임 접속 테스트는 수행하지 않았습니다.
-* Windows ZIP 생성과 GitHub 릴리즈 게시 확인은 Release Windows workflow에서 별도로 진행합니다.
+* v0.2.0의 Windows ZIP 빌드·체크섬과 GitHub 릴리즈 게시를 확인했습니다.
+* v0.2.1은 Inno Setup 설치 EXE로 전환하며 Release Windows workflow에서 설치 파일 컴파일·체크섬·게시를 확인합니다.
 
 다음 확인 명령은 Windows x64의 JDK 21 환경에서 실행합니다.
 

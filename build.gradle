@@ -57,16 +57,22 @@ tasks.register('packageWindows', Exec) {
         marker.setText("applicationId=rlawngjs0313.game-launcher\nversion=${project.version}\n", 'UTF-8')
     }
 }
-def windowsZip = tasks.register('releaseWindowsZip', Zip) {
+def windowsInstaller = tasks.register('packageWindowsInstaller', Exec) {
     dependsOn packageWindows
-    from(layout.buildDirectory.dir('package')) { include 'GameLauncher/**' }
-    destinationDirectory = layout.buildDirectory.dir('releases')
-    archiveFileName = "GameLauncher-${project.version}-windows-x64.zip"
+    doFirst {
+        def compiler = providers.environmentVariable('ISCC_EXE').getOrElse('C:/Program Files (x86)/Inno Setup 6/ISCC.exe')
+        if (!file(compiler).isFile()) throw new GradleException('Inno Setup 6 compiler not found. Install Inno Setup or set ISCC_EXE.')
+        def output = layout.buildDirectory.dir('releases').get().asFile
+        output.mkdirs()
+        commandLine compiler, '/Qp', "/DAppVersion=${project.version}",
+            "/DPackageDir=${layout.buildDirectory.dir('package/GameLauncher').get().asFile.absolutePath}",
+            "/DOutputDir=${output.absolutePath}", file('installer/windows.iss').absolutePath
+    }
 }
 tasks.register('releaseWindows') {
-    dependsOn windowsZip
+    dependsOn windowsInstaller
     doLast {
-        def archive = windowsZip.get().archiveFile.get().asFile
+        def archive = layout.buildDirectory.file("releases/GameLauncher-${project.version}-windows-x64-setup.exe").get().asFile
         def digest = java.security.MessageDigest.getInstance('SHA-256')
         archive.withInputStream { stream ->
             byte[] block = new byte[65536]

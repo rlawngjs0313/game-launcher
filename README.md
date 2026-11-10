@@ -7,11 +7,13 @@ ARM64 네이티브 패키징은 이번 구현 범위에서 제외합니다.
 
 [최신 릴리즈 다운로드](https://github.com/rlawngjs0313/game-launcher/releases/latest)
 
-1. Assets에서 `GameLauncher-버전-windows-x64.zip`을 받습니다.
-2. `GameLauncher` 폴더 전체를 다운로드/문서 등 **쓰기가 가능한 사용자 폴더**에 압축 해제합니다.
-3. `GameLauncher.exe`를 실행합니다. 별도의 Java 설치는 필요하지 않습니다.
+1. Assets에서 `GameLauncher-버전-windows-x64-setup.exe` 하나를 받습니다.
+2. EXE를 실행하면 바로 설치가 진행되고 완료 후 런처가 열립니다.
+3. 이후 시작 메뉴의 **Game Launcher**에서 실행합니다. 별도의 Java 설치는 필요하지 않습니다.
 
-`Source code.zip`은 개발용 소스이므로 실행 파일 ZIP을 선택하세요.
+설치 위치는 `%LOCALAPPDATA%/Programs/GameLauncher`이며 관리자 권한을 요구하지 않습니다.
+Windows 설정의 설치된 앱에서 제거할 수 있습니다. 제거해도 계정·게임 데이터는 별도 사용자 데이터 폴더에 유지됩니다.
+`Source code.zip`은 개발용 소스이므로 실행 파일 EXE를 선택하세요.
 일반 사용자는 Gradle이나 JDK를 설치할 필요가 없습니다.
 
 ## 런처 업데이트
@@ -23,22 +25,22 @@ ARM64 네이티브 패키징은 이번 구현 범위에서 제외합니다.
 **업데이트 후 재시작**을 누르면 다음 순서로 진행합니다.
 
 ```text
-ZIP 다운로드 → SHA-256·크기 검증 → 새 앱 압축 해제
-→ 별도 Java 도우미 시작 → 현재 런처 종료
-→ 실행 파일·포함 Java 교체 → 새 런처 시작
+설치 EXE 다운로드 → SHA-256·크기 검증 → 별도 Java 도우미 시작
+→ 현재 런처 종료 → 설치 EXE로 업데이트 → 새 런처 시작
 ```
 
-새 런처가 시작됐다는 확인을 받지 못하면 이전 실행 파일 폴더를 복원합니다.
-이를 위한 이전 앱 폴더는 업데이트 성공 후 정리합니다. 모드 백업 기능과는 별개입니다.
+새 런처가 시작됐다는 확인을 받지 못하면 현재 버전의 설치 EXE로 복구합니다.
+복구용 설치 EXE도 확인·다운로드하며 `installer-cache`에 보관합니다. 모드 백업 기능과는 별개입니다.
+업데이트 도우미가 종료된 다음에는 현재 버전의 복구 설치 파일만 캐시에 유지합니다.
 `%LOCALAPPDATA%/GameLauncher`의 계정·서버 목록·게임·모드는 업데이트 대상에 포함하지 않습니다.
 실행 중인 게임은 먼저 종료해야 업데이트할 수 있습니다.
 다운로드/검증/쓰기 권한 확인에 실패하면 현재 런처를 종료하지 않습니다.
 인터넷 연결 실패나 새 릴리즈 부재는 기존 버전의 사용을 막지 않습니다.
 
 자동 교체는 이 기능이 포함된 Windows 릴리즈 앱에서 지원합니다.
-기존 0.1.0 개발 빌드는 최초 한 번 새 ZIP을 직접 받아야 합니다.
+기존 0.1.0 및 0.2.0 ZIP 빌드는 최초 한 번 새 설치 EXE를 직접 실행해야 합니다.
 업데이트 실패 기록은 `%LOCALAPPDATA%/GameLauncher/updates/update-*/`에 남깁니다.
-개발 실행(`gradlew run`)에서는 버전 확인만 가능하며 앱 폴더를 교체하지 않습니다.
+개발 실행(`gradlew run`)에서는 버전 확인만 가능하며 설치 EXE를 실행하지 않습니다.
 
 ## 시작
 
@@ -47,17 +49,18 @@ ZIP 다운로드 → SHA-256·크기 검증 → 새 앱 압축 해제
 .\gradlew.bat run
 ```
 
-Windows x64에서 Java가 없는 PC에 전달할 앱 이미지 만들기:
+Windows x64에서 설치 전 앱 이미지 구성 확인용 빌드:
 
 ```powershell
 .\gradlew.bat packageWindows
 ```
 
-`build/package/GameLauncher` **폴더 전체**를 ZIP으로 전달합니다. exe만 전달하면 안 됩니다.
-앱 이미지에는 런처 실행용 Java가 포함됩니다. 게임용 Java는 별도로 설치합니다.
+`build/package/GameLauncher`는 설치 EXE에 포함할 중간 산출물입니다. 실제 배포는 아래 `releaseWindows`를 사용합니다.
+런처 실행용 Java가 포함되며 게임용 Java는 별도로 설치합니다.
 패키징은 대상 Windows에서 실행해야 하며 ARM64 네이티브 이미지를 만들지 않습니다.
 
-배포 ZIP과 체크섬을 로컬에서 만들려면:
+배포 설치 EXE와 체크섬을 로컬에서 만들려면 Inno Setup 6 이상을 설치하고 다음을 실행합니다.
+컴파일러가 기본 경로에 없다면 `ISCC_EXE` 환경변수로 `ISCC.exe` 경로를 지정합니다.
 
 ```powershell
 .\gradlew.bat releaseWindows -x test
@@ -67,16 +70,17 @@ Windows x64에서 Java가 없는 PC에 전달할 앱 이미지 만들기:
 
 ## 새 버전 릴리즈하기
 
-버전 원본은 `version.properties` 하나입니다. UI, 빌드 정보, ZIP 파일명과 앱 버전은 여기서 생성합니다.
+버전 원본은 `version.properties` 하나입니다. UI, 빌드 정보, EXE 파일명과 앱 버전은 여기서 생성합니다.
 
 1. `version.properties`의 버전을 올립니다. 예: `version=0.3.0`.
-2. 변경 사항을 `main`에 커밋하고 push합니다.
+2. `docs/releases/v0.3.0.md`에 해당 버전의 변경사항을 작성하고 `main`에 커밋·push합니다.
 3. GitHub Actions → **Release Windows** → **Run workflow**, branch `main`을 선택합니다.
 4. Windows 빌드와 패키징 성공 후 해당 버전의 GitHub Release가 게시됩니다.
 
 또는 `main`의 해당 커밋에 `v0.3.0` 태그를 push해 같은 작업을 실행할 수 있습니다.
 태그와 `version.properties`는 일치해야 합니다. 이미 게시한 릴리즈 파일은 덮어쓰지 않으며,
 수정판은 새 버전으로 게시합니다. 브랜치는 `main` 하나를 사용합니다.
+릴리즈 제목은 `v0.3.0` 형식이며 본문은 해당 변경사항 파일의 내용입니다.
 게시 중인 릴리즈는 draft 상태로 파일을 모두 올린 뒤 공개하므로 불완전한 파일 묶음이
 업데이트 대상으로 선택되지 않습니다.
 
