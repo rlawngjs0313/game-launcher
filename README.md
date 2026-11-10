@@ -84,21 +84,33 @@ Windows x64에서 설치 전 앱 이미지 구성 확인용 빌드:
 게시 중인 릴리즈는 draft 상태로 파일을 모두 올린 뒤 공개하므로 불완전한 파일 묶음이
 업데이트 대상으로 선택되지 않습니다.
 
-친구들이 Microsoft Client ID를 직접 입력하지 않게 하려면 저장소의
-Settings → Secrets and variables → Actions → **Variables**에
-`MICROSOFT_CLIENT_ID`를 설정한 후 릴리즈하세요. 이는 공개 애플리케이션 ID이며
-Client Secret이나 개인 액세스 토큰을 넣는 항목이 아닙니다.
-설정된 Client ID는 앱의 기본값으로 포함되고, 없으면 기존처럼 런처 설정에서 입력합니다.
+Microsoft Client ID는 빌드할 때 앱에 포함합니다. 사용자가 입력하는 설정 항목은 없습니다.
+로컬에서는 `Launcher/.env` (`build.gradle`과 같은 폴더)에 다음 값을 입력한 후 빌드하세요.
+파일이 없다면 `.env.example`을 `.env`로 복사합니다.
+
+```dotenv
+MICROSOFT_CLIENT_ID=본인의-Microsoft-애플리케이션-클라이언트-ID
+```
+
+이는 공개 애플리케이션 ID이며 Client Secret이나 개인 액세스 토큰을 넣는 항목이 아닙니다.
+`.env`는 Git에서 제외되며 빌드 시에만 읽습니다. 변경한 ID를 적용하려면 다시 빌드해야 합니다.
+같은 이름의 환경변수가 있으면 `.env`보다 우선합니다.
+GitHub Actions에서는 저장소의 Settings → Secrets and variables → Actions → **Variables**에
+`MICROSOFT_CLIENT_ID`를 설정하세요. 로컬 `.env`는 GitHub에 전송되지 않습니다.
+ID가 없으면 개발용 컴파일은 가능하지만 Windows 패키징은 실패합니다.
+기존 사용자 설정에 저장된 Client ID는 사용하지 않습니다.
 
 ## 최초 설정
 
-1. 설정 → 준비한 Microsoft 애플리케이션의 Client ID 입력.
-2. 해당 애플리케이션에는 개인 Microsoft 계정 로그인과 데스크톱 리디렉션
+1. 런처에서 **Microsoft 로그인**을 누릅니다. 배포자는 빌드에 포함할 애플리케이션에
+   개인 Microsoft 계정 로그인과 데스크톱 리디렉션
    `http://localhost`를 설정합니다. 로그인은 브라우저 + Authorization Code/PKCE입니다.
    Client Secret은 사용하지 않습니다. Minecraft Services API 이용 가능 여부는 해당 앱 등록 상태에 따라 달라집니다.
-3. 게임 Java 경로는 비우면 필요한 버전의 Adoptium JRE를 자동 설치합니다.
+2. 게임 Java 경로는 비우면 필요한 버전의 Adoptium JRE를 자동 설치합니다.
    직접 지정할 때는 서버 Minecraft 버전이 요구하는 Java의 `java.exe` 전체 경로를 입력합니다.
-4. 서버 추가 → 이름, 게임 주소, API 기본 주소, 서버 ID, 선택적으로 초대 토큰 입력.
+3. 서버 추가 → 이름, 게임 주소, API 기본 주소, 서버 ID 입력.
+
+진행 상태는 하단 한 줄로 표시하고 작업 오류와 게임 비정상 종료는 팝업으로 안내합니다.
 
 예:
 
@@ -109,7 +121,7 @@ API 주소: https://launcher.example.com
 ```
 
 API 주소는 HTTPS가 기본이며 `localhost` 개발 주소만 HTTP를 허용합니다.
-초대 토큰이 설정된 Backend라면 같은 토큰을 입력합니다.
+초대 토큰은 사용하지 않습니다. 기존 설정에 남은 토큰은 읽을 때 무시하고 다음 저장 시 제거합니다.
 
 ## 접속 동작
 

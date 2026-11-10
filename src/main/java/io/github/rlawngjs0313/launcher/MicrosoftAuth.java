@@ -21,8 +21,13 @@ final class MicrosoftAuth {
     private Account current;
     MicrosoftAuth(Path root) { tokenFile = root.resolve("account.dpapi"); }
 
+    static void validateClientId(String clientId) throws IOException {
+        if (clientId == null || !clientId.matches("[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"))
+            throw new IOException("이 런처에 Microsoft 로그인 설정이 포함되지 않았습니다. 배포자에게 문의하세요.");
+    }
+
     synchronized Account authenticate(String clientId, Consumer<String> progress) throws Exception {
-        if (clientId == null || !clientId.matches("[a-fA-F0-9-]{36}")) throw new IOException("설정에서 Microsoft 애플리케이션 Client ID를 입력하세요.");
+        validateClientId(clientId);
         if (current != null && current.clientId().equals(clientId) && current.expires().isAfter(Instant.now().plusSeconds(90))) return current;
         JsonObject msa = null;
         JsonObject saved = load();

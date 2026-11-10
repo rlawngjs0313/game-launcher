@@ -15,6 +15,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: .\gradlew.bat build -x test packageWindows --no-daemon
+        env:
+          MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: GameLauncher-windows-x64

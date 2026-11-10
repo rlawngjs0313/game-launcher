@@ -4,3 +4,6 @@ out/
 .idea/
 *.log
 local.properties
+.env
+.env.*
+!.env.example

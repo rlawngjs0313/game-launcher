@@ -85,7 +85,7 @@ final class ModSync {
             String prefix = Net.serverPath(server) + "/artifacts/" + candidate.file.sha256() + "?revision=";
             if (!relative.startsWith(prefix)) throw new IOException("잘못된 모드 다운로드 경로");
             Path temporary = staging.resolve(candidate.file.sha256() + ".jar");
-            Net.download(Net.apiBase(server.apiBase()).toString() + relative, temporary, "SHA-256", candidate.file.sha256(), server.token());
+            Net.download(Net.apiBase(server.apiBase()).toString() + relative, temporary, "SHA-256", candidate.file.sha256());
             Models.ModFile scanned = ModInspector.inspect(temporary);
             if (scanned.size() != candidate.file.size() || !new HashSet<>(scanned.mods()).equals(new HashSet<>(candidate.file.mods()))) throw new IOException("다운로드한 모드 정보가 서버 목록과 다릅니다: " + candidate.file.fileName());
             var copy = new Candidate(new Models.ModFile(candidate.file.fileName(), scanned.sha256(), scanned.size(), scanned.mods(), scanned.dependencies()), candidate.artifact, false); copy.selected = true; inspected.add(copy);

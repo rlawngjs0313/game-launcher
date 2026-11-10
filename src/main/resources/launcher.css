@@ -7,5 +7,4 @@
 .list-view { -fx-background-radius: 10px; -fx-padding: 7px; }
 .list-cell { -fx-background-radius: 8px; -fx-background-insets: 3px; }
 .list-cell:selected { -fx-background-color: #2a4356; }
-.text-area { -fx-font-family: "Consolas", "Malgun Gothic", monospace; -fx-font-size: 12px; }
 .dialog-pane { -fx-padding: 18px; }

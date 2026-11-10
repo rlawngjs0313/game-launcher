@@ -13,16 +13,16 @@ final class Net {
     static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).followRedirects(HttpClient.Redirect.NEVER).build();
     static final HttpClient DOWNLOADS = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NORMAL).build();
     static void checkCancelled() throws InterruptedException { if (Thread.currentThread().isInterrupted()) throw new InterruptedException("작업을 취소했습니다."); }
-    static JsonObject json(String url) throws Exception { return request(URI.create(url), "GET", null, ""); }
+    static JsonObject json(String url) throws Exception { return request(URI.create(url), "GET", null); }
     static JsonElement element(String url) throws Exception {
-        var response = DOWNLOADS.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(45)).header("User-Agent", "GameLauncher/0.1.0").build(), HttpResponse.BodyHandlers.ofString());
+        var response = DOWNLOADS.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(45)).header("User-Agent", "GameLauncher/" + BuildInfo.VERSION).build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) throw new IOException("HTTP " + response.statusCode());
         return JsonParser.parseString(response.body());
     }
     static JsonObject api(Models.ServerEntry server, String suffix, JsonObject body) throws Exception {
         URI base = apiBase(server.apiBase());
         URI uri = base.resolve(base.getPath().replaceAll("/$", "") + suffix);
-        return request(uri, body == null ? "GET" : "POST", body, server.token());
+        return request(uri, body == null ? "GET" : "POST", body);
     }
     static URI apiBase(String value) {
         URI uri = URI.create(value.replaceAll("/$", ""));
@@ -35,10 +35,9 @@ final class Net {
         return uri;
     }
     static String serverPath(Models.ServerEntry server) { return "/api/v1/servers/" + URLEncoder.encode(server.serverId(), java.nio.charset.StandardCharsets.UTF_8); }
-    static JsonObject request(URI uri, String method, JsonObject body, String token) throws Exception {
+    static JsonObject request(URI uri, String method, JsonObject body) throws Exception {
         checkCancelled();
-        HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(45)).header("Accept", "application/json").header("User-Agent", "GameLauncher/0.1.0");
-        if (token != null && !token.isBlank()) builder.header("Authorization", "Bearer " + token);
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(45)).header("Accept", "application/json").header("User-Agent", "GameLauncher/" + BuildInfo.VERSION);
         if (body == null) builder.GET(); else builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(Store.JSON.toJson(body)));
         HttpResponse<String> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
@@ -48,10 +47,10 @@ final class Net {
         }
         return JsonParser.parseString(response.body()).getAsJsonObject();
     }
-    static void download(String url, Path target, String algorithm, String expected, String token) throws Exception {
-        download(url, target, algorithm, expected, token, Long.MAX_VALUE);
+    static void download(String url, Path target, String algorithm, String expected) throws Exception {
+        download(url, target, algorithm, expected, Long.MAX_VALUE);
     }
-    static void download(String url, Path target, String algorithm, String expected, String token, long maximumBytes) throws Exception {
+    static void download(String url, Path target, String algorithm, String expected, long maximumBytes) throws Exception {
         checkCancelled();
         if (Files.isRegularFile(target) && (expected == null || expected.isBlank() || hash(target, algorithm).equalsIgnoreCase(expected))) return;
         URI uri = URI.create(url);
@@ -59,10 +58,8 @@ final class Net {
         Files.createDirectories(target.toAbsolutePath().getParent());
         Path temporary = Files.createTempFile(target.toAbsolutePath().getParent(), ".download-", ".part");
         try {
-            HttpRequest.Builder request = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(15)).header("User-Agent", "GameLauncher/0.1.0");
-            if (token != null && !token.isBlank()) request.header("Authorization", "Bearer " + token);
-            HttpClient client = token == null || token.isBlank() ? DOWNLOADS : HTTP;
-            var response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+            HttpRequest.Builder request = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(15)).header("User-Agent", "GameLauncher/" + BuildInfo.VERSION);
+            var response = DOWNLOADS.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream in = response.body()) {
                 if (response.statusCode() != 200) throw new IOException("파일 다운로드 HTTP " + response.statusCode());
                 try (OutputStream out = Files.newOutputStream(temporary)) {

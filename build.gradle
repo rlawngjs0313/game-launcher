@@ -19,15 +19,26 @@ dependencies {
     implementation 'net.java.dev.jna:jna-platform:5.16.0'
 }
 application { mainClass = 'io.github.rlawngjs0313.launcher.Main' }
+def microsoftClientId = providers.environmentVariable('MICROSOFT_CLIENT_ID').orElse(
+    providers.fileContents(layout.projectDirectory.file('.env')).asText.orElse('').map { contents ->
+        def properties = new Properties()
+        properties.load(new StringReader(contents))
+        properties.getProperty('MICROSOFT_CLIENT_ID', '')
+    }
+).map { value ->
+    def id = value.trim()
+    if (id.length() >= 2 && ((id.startsWith('"') && id.endsWith('"')) || (id.startsWith("'") && id.endsWith("'")))) id = id.substring(1, id.length() - 1)
+    id
+}
 def generateBuildInfo = tasks.register('generateBuildInfo') {
     inputs.property('launcherVersion', project.version.toString())
-    inputs.property('microsoftClientId', providers.environmentVariable('MICROSOFT_CLIENT_ID').orElse(''))
+    inputs.property('microsoftClientId', microsoftClientId)
     outputs.dir(layout.buildDirectory.dir('generated/build-info'))
     doLast {
         def output = layout.buildDirectory.file('generated/build-info/launcher-build.properties').get().asFile
         output.parentFile.mkdirs()
-        def clientId = providers.environmentVariable('MICROSOFT_CLIENT_ID').getOrElse('')
-        if (clientId && !(clientId ==~ /[a-fA-F0-9-]{36}/)) throw new GradleException('MICROSOFT_CLIENT_ID must be a public application client ID')
+        def clientId = microsoftClientId.get()
+        if (clientId && !(clientId ==~ /[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}/)) throw new GradleException('MICROSOFT_CLIENT_ID must be a public application client ID')
         output.setText("version=${project.version}\nrepository=rlawngjs0313/game-launcher\nmicrosoftClientId=${clientId}\n", 'UTF-8')
     }
 }
@@ -40,6 +51,7 @@ tasks.register('packageWindows', Exec) {
     dependsOn installDist
     inputs.property('launcherVersion', project.version.toString())
     doFirst {
+        if (microsoftClientId.get().isBlank()) throw new GradleException('Set MICROSOFT_CLIENT_ID in Launcher/.env or the build environment before packaging.')
         if (!os.contains('win') || arm) throw new GradleException('Windows x64 JDK 21 is required for packaging. Use the Release Windows workflow on GitHub.')
         delete(layout.buildDirectory.dir('package/GameLauncher'))
         commandLine "${System.getProperty('java.home')}/bin/jpackage.exe",
