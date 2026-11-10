@@ -1,0 +1,35 @@
+plugins { id 'application' }
+group = 'io.github.rlawngjs0313'
+version = '0.1.0'
+repositories { mavenCentral() }
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+def os = System.getProperty('os.name').toLowerCase()
+def arm = System.getProperty('os.arch').contains('aarch64') || System.getProperty('os.arch').contains('arm64')
+def fxPlatform = os.contains('win') ? 'win' : os.contains('mac') ? (arm ? 'mac-aarch64' : 'mac') : (arm ? 'linux-aarch64' : 'linux')
+dependencies {
+    implementation "org.openjfx:javafx-controls:21.0.5:${fxPlatform}"
+    implementation "org.openjfx:javafx-graphics:21.0.5:${fxPlatform}"
+    implementation "org.openjfx:javafx-base:21.0.5:${fxPlatform}"
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'com.electronwill.night-config:toml:3.8.1'
+    implementation 'org.apache.maven:maven-artifact:3.9.9'
+    implementation 'net.java.dev.jna:jna-platform:5.16.0'
+}
+application { mainClass = 'io.github.rlawngjs0313.launcher.Main' }
+tasks.named('jar') {
+    doFirst { manifest.attributes('Main-Class': application.mainClass.get(), 'Class-Path': configurations.runtimeClasspath.files.collect { it.name }.join(' ')) }
+}
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+tasks.register('packageWindows', Exec) {
+    dependsOn installDist
+    onlyIf { os.contains('win') && !arm }
+    doFirst {
+        commandLine "${System.getProperty('java.home')}/bin/jpackage.exe",
+            '--type', 'app-image', '--name', 'GameLauncher', '--app-version', project.version,
+            '--input', layout.buildDirectory.dir('install/game-launcher/lib').get().asFile,
+            '--main-jar', "${project.name}-${project.version}.jar",
+            '--main-class', application.mainClass.get(), '--dest', layout.buildDirectory.dir('package').get().asFile,
+            '--add-modules', 'java.base,java.desktop,java.net.http,java.logging,java.management,java.naming,java.xml,jdk.httpserver,jdk.crypto.ec,jdk.unsupported',
+            '--java-options', '-Dfile.encoding=UTF-8'
+    }
+}

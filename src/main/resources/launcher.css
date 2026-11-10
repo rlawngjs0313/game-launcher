@@ -1,0 +1,11 @@
+.root { -fx-font-family: "Segoe UI", "Malgun Gothic", sans-serif; -fx-font-size: 13px; -fx-base: #171d29; -fx-background: #111723; -fx-control-inner-background: #182131; -fx-accent: #69c9a5; }
+.title { -fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #edf3fa; }
+.muted { -fx-text-fill: #9caec4; }
+.server-name { -fx-font-size: 18px; -fx-font-weight: bold; }
+.button { -fx-padding: 9px 16px; -fx-background-radius: 7px; -fx-cursor: hand; }
+.primary { -fx-background-color: #69c9a5; -fx-text-fill: #10251e; -fx-font-weight: bold; }
+.list-view { -fx-background-radius: 10px; -fx-padding: 7px; }
+.list-cell { -fx-background-radius: 8px; -fx-background-insets: 3px; }
+.list-cell:selected { -fx-background-color: #2a4356; }
+.text-area { -fx-font-family: "Consolas", "Malgun Gothic", monospace; -fx-font-size: 12px; }
+.dialog-pane { -fx-padding: 18px; }
