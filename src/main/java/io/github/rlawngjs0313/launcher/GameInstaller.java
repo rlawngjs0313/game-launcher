@@ -32,12 +32,12 @@ final class GameInstaller {
         for (JsonElement value : manifest.getAsJsonArray("versions")) if (value.getAsJsonObject().get("id").getAsString().equals(minecraft)) { entry = value.getAsJsonObject(); break; }
         if (entry == null) throw new IOException("공식 배포 목록에 없는 Minecraft 버전: " + minecraft);
         Path versionFile = root.resolve("versions").resolve(minecraft).resolve(minecraft + ".json");
-        Net.download(entry.get("url").getAsString(), versionFile, "SHA-1", Net.str(entry, "sha1", ""), "");
+        Net.download(entry.get("url").getAsString(), versionFile, "SHA-1", Net.str(entry, "sha1", ""));
         JsonObject base = read(versionFile);
         int javaMajor = base.has("javaVersion") ? base.getAsJsonObject("javaVersion").get("majorVersion").getAsInt() : 8;
         Path java = ensureJava(javaMajor, settings.javaPath);
         JsonObject client = base.getAsJsonObject("downloads").getAsJsonObject("client");
-        Net.download(client.get("url").getAsString(), root.resolve("versions").resolve(minecraft).resolve(minecraft + ".jar"), "SHA-1", client.get("sha1").getAsString(), "");
+        Net.download(client.get("url").getAsString(), root.resolve("versions").resolve(minecraft).resolve(minecraft + ".jar"), "SHA-1", client.get("sha1").getAsString());
         installLibraries(base);
         installAssets(base);
         String profile = minecraft;
@@ -50,7 +50,7 @@ final class GameInstaller {
             if (checksumResponse.statusCode() != 200) throw new IOException("NeoForge 설치 파일 체크섬 HTTP " + checksumResponse.statusCode());
             String checksum = checksumResponse.body().strip().split("\\s+")[0];
             if (!checksum.matches("[a-fA-F0-9]{40}")) throw new IOException("NeoForge 설치 파일 체크섬을 확인할 수 없습니다.");
-            Net.download(url, installer, "SHA-1", checksum, "");
+            Net.download(url, installer, "SHA-1", checksum);
             try (ZipFile zip = new ZipFile(installer.toFile())) {
                 var version = zip.getEntry("version.json");
                 if (version == null) throw new IOException("NeoForge 설치 파일의 프로필이 없습니다.");
@@ -90,7 +90,7 @@ final class GameInstaller {
         if (assets.isEmpty()) throw new IOException("해당 플랫폼의 Java 배포 파일이 없습니다.");
         JsonObject pkg = assets.get(0).getAsJsonObject().getAsJsonObject("binary").getAsJsonObject("package");
         Path archive = root.resolve("cache").resolve("jre-" + major + "-" + arch + ".zip");
-        Net.download(pkg.get("link").getAsString(), archive, "SHA-256", pkg.get("checksum").getAsString(), "");
+        Net.download(pkg.get("link").getAsString(), archive, "SHA-256", pkg.get("checksum").getAsString());
         Path staging = root.resolve("runtimes").resolve(".install-" + UUID.randomUUID());
         try {
             unzip(archive, staging, false);
@@ -127,19 +127,19 @@ final class GameInstaller {
             } else {
                 String relative = coordinatePath(library.get("name").getAsString());
                 String base = Net.str(library, "url", "https://libraries.minecraft.net/");
-                Net.download(base.replaceAll("/$", "") + "/" + relative, root.resolve("libraries").resolve(relative), "SHA-1", "", "");
+                Net.download(base.replaceAll("/$", "") + "/" + relative, root.resolve("libraries").resolve(relative), "SHA-1", "");
             }
         }
     }
     private void downloadLibrary(JsonObject artifact) throws Exception {
         Path target = safeResolve(root.resolve("libraries"), artifact.get("path").getAsString());
-        Net.download(artifact.get("url").getAsString(), target, "SHA-1", Net.str(artifact, "sha1", ""), "");
+        Net.download(artifact.get("url").getAsString(), target, "SHA-1", Net.str(artifact, "sha1", ""));
     }
     private void installAssets(JsonObject version) throws Exception {
         if (!version.has("assetIndex")) return;
         JsonObject index = version.getAsJsonObject("assetIndex");
         Path target = safeResolve(root.resolve("assets/indexes"), index.get("id").getAsString() + ".json");
-        Net.download(index.get("url").getAsString(), target, "SHA-1", index.get("sha1").getAsString(), "");
+        Net.download(index.get("url").getAsString(), target, "SHA-1", index.get("sha1").getAsString());
         JsonObject objects = read(target).getAsJsonObject("objects");
         progress.accept("게임 에셋 확인: " + objects.size() + "개");
         try (ExecutorService workers = Executors.newFixedThreadPool(4)) {
@@ -148,7 +148,7 @@ final class GameInstaller {
                 String hash = entry.getValue().getAsJsonObject().get("hash").getAsString();
                 if (!hash.matches("[a-f0-9]{40}")) throw new IOException("잘못된 에셋 해시");
                 String relative = hash.substring(0, 2) + "/" + hash;
-                futures.add(workers.submit(() -> { try { Net.download("https://resources.download.minecraft.net/" + relative, root.resolve("assets/objects").resolve(relative), "SHA-1", hash, ""); } catch (Exception ex) { throw new CompletionException(ex); } }));
+                futures.add(workers.submit(() -> { try { Net.download("https://resources.download.minecraft.net/" + relative, root.resolve("assets/objects").resolve(relative), "SHA-1", hash); } catch (Exception ex) { throw new CompletionException(ex); } }));
             }
             try { for (Future<?> future : futures) { Net.checkCancelled(); future.get(); } }
             catch (Exception ex) { workers.shutdownNow(); throw ex; }

@@ -30,7 +30,6 @@ public final class LauncherApp extends Application {
     private final ListView<Models.ServerEntry> list = new ListView<>(servers);
     private final Map<Models.ServerEntry, JsonObject> information = new ConcurrentHashMap<>();
     private final Map<Models.ServerEntry, JsonObject> statuses = new ConcurrentHashMap<>();
-    private final TextArea log = new TextArea();
     private final Label state = new Label("서버를 등록하거나 선택하세요.");
     private final Label account = new Label("로그인하지 않음");
     private final ProgressIndicator indicator = new ProgressIndicator();
@@ -45,14 +44,13 @@ public final class LauncherApp extends Application {
     @Override public void start(Stage stage) throws Exception {
         this.stage = stage; store = new Store(); settings = store.load(); auth = new MicrosoftAuth(store.root); servers.setAll(settings.servers);
         updater = new LauncherUpdater(store.root);
-        if (settings.clientId.isBlank() && !BuildInfo.MICROSOFT_CLIENT_ID.isBlank()) settings.clientId = BuildInfo.MICROSOFT_CLIENT_ID;
         Label title = new Label("Game Launcher " + BuildInfo.VERSION); title.getStyleClass().add("title");
         Label subtitle = new Label("함께 플레이할 서버를 선택하세요."); subtitle.getStyleClass().add("muted");
         VBox heading = new VBox(6, title, subtitle); HBox.setHgrow(heading, Priority.ALWAYS);
         Button preferences = button("설정", this::preferences);
         Button updates = button("업데이트 확인", () -> checkUpdates(false));
         Button login = button("Microsoft 로그인", () -> work(() -> {
-            var logged = auth.authenticate(settings.clientId, this::progress); Platform.runLater(() -> account.setText(logged.name()));
+            var logged = auth.authenticate(BuildInfo.MICROSOFT_CLIENT_ID, this::progress); Platform.runLater(() -> account.setText(logged.name()));
         }));
         HBox header = new HBox(16, heading, account, updates, login, preferences); header.setAlignment(Pos.CENTER_LEFT);
         list.setCellFactory(view -> new ListCell<>() {
@@ -92,8 +90,7 @@ public final class LauncherApp extends Application {
         indicator.setPrefSize(22, 22); indicator.setVisible(false); cancel.setDisable(true);
         cancel.setOnAction(event -> { Future<?> task = active; if (task != null) task.cancel(true); if (activeDialog != null) activeDialog.close(); });
         HBox progress = new HBox(12, indicator, state, cancel); progress.setAlignment(Pos.CENTER_LEFT); HBox.setHgrow(state, Priority.ALWAYS);
-        log.setEditable(false); log.setWrapText(true); log.setPrefRowCount(5);
-        VBox root = new VBox(18, header, list, actions, progress, log); root.setPadding(new Insets(26)); VBox.setVgrow(list, Priority.ALWAYS);
+        VBox root = new VBox(18, header, list, actions, progress); root.setPadding(new Insets(26)); VBox.setVgrow(list, Priority.ALWAYS);
         Scene scene = new Scene(root, 1040, 720);
         scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/launcher.css")).toExternalForm());
         stage.setTitle("Game Launcher"); stage.setScene(scene); stage.setMinWidth(850); stage.setMinHeight(600); stage.show();
@@ -113,12 +110,13 @@ public final class LauncherApp extends Application {
 
     private Button button(String label, Runnable action) { Button button = new Button(label); guarded.add(button); button.setOnAction(event -> { if (active == null || active.isDone()) action.run(); }); return button; }
     private void persist() { try { store.save(settings); } catch (IOException ex) { error(ex); } }
-    private void progress(String message) { Platform.runLater(() -> { state.setText(message); log.appendText(message + "\n"); }); }
+    private void progress(String message) { Platform.runLater(() -> state.setText(message)); }
     private void error(Throwable error) {
+        if (!Platform.isFxApplicationThread()) { Platform.runLater(() -> error(error)); return; }
         Throwable actual = error; while ((actual instanceof ExecutionException || actual instanceof CompletionException) && actual.getCause() != null) actual = actual.getCause();
         String message = actual.getMessage() == null ? actual.getClass().getSimpleName() : actual.getMessage();
-        progress("오류: " + message);
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK); alert.initOwner(stage); alert.setHeaderText("작업을 완료하지 못했습니다"); alert.showAndWait();
+        state.setText("작업을 완료하지 못했습니다.");
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK); alert.initOwner(stage); alert.setTitle("오류"); alert.setHeaderText("작업을 완료하지 못했습니다"); alert.showAndWait();
     }
     private boolean confirm(String title, String text) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, text, ButtonType.OK, ButtonType.CANCEL); alert.initOwner(stage); alert.setHeaderText(title);
@@ -157,10 +155,9 @@ public final class LauncherApp extends Application {
         TextField address = new TextField(original == null ? "" : original.address()); address.setPromptText("mc.example.com:25565");
         TextField api = new TextField(original == null ? "" : original.apiBase()); api.setPromptText("https://launcher.example.com");
         TextField id = new TextField(original == null ? "ars-server" : original.serverId());
-        PasswordField token = new PasswordField(); token.setText(original == null ? "" : original.token());
-        GridPane grid = form(new String[]{"표시 이름", "게임 접속 주소", "동기화 API 주소", "서버 ID", "초대 토큰 (선택)"}, name, address, api, id, token);
+        GridPane grid = form(new String[]{"표시 이름", "게임 접속 주소", "동기화 API 주소", "서버 ID"}, name, address, api, id);
         dialog.getDialogPane().setContent(grid); dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialog.setResultConverter(button -> button == ButtonType.OK ? new Models.ServerEntry(name.getText().strip(), address.getText().strip(), api.getText().strip().replaceAll("/$", ""), id.getText().strip(), token.getText().strip()) : null);
+        dialog.setResultConverter(button -> button == ButtonType.OK ? new Models.ServerEntry(name.getText().strip(), address.getText().strip(), api.getText().strip().replaceAll("/$", ""), id.getText().strip()) : null);
         dialog.showAndWait().ifPresent(server -> work(() -> {
             if (server.name().isBlank() || server.address().isBlank() || !server.serverId().matches("[A-Za-z0-9_-]+")) throw new IOException("이름, 게임 주소, 서버 ID를 확인하세요.");
             Net.apiBase(server.apiBase());
@@ -179,15 +176,15 @@ public final class LauncherApp extends Application {
     }
     private void preferences() {
         Dialog<ButtonType> dialog = new Dialog<>(); dialog.initOwner(stage); dialog.setTitle("런처 설정");
-        TextField clientId = new TextField(settings.clientId); TextField javaPath = new TextField(settings.javaPath); javaPath.setPromptText("비워두면 자동 설치 · 직접 지정 시 java.exe 전체 경로");
+        TextField javaPath = new TextField(settings.javaPath); javaPath.setPromptText("비워두면 자동 설치 · 직접 지정 시 java.exe 전체 경로");
         Spinner<Integer> memory = new Spinner<>(1024, 32768, settings.memoryMb, 512); memory.setEditable(true);
-        GridPane grid = form(new String[]{"Microsoft Client ID", "게임 Java 실행 파일", "게임 메모리 (MB)"}, clientId, javaPath, memory);
+        GridPane grid = form(new String[]{"게임 Java 실행 파일", "게임 메모리 (MB)"}, javaPath, memory);
         Button logout = new Button("로그아웃"); logout.setOnAction(event -> { try { auth.logout(); account.setText("로그인하지 않음"); } catch (IOException ex) { error(ex); } });
         Button folder = new Button("데이터 폴더 열기"); folder.setOnAction(event -> { try { Desktop.getDesktop().open(store.root.toFile()); } catch (IOException ex) { error(ex); } });
         CheckBox automaticUpdates = new CheckBox("런처 시작 시 새 버전 확인"); automaticUpdates.setSelected(settings.checkForUpdates);
         VBox content = new VBox(12, grid, automaticUpdates, new HBox(10, logout, folder), new Label("Minecraft·NeoForge 설치 파일과 모드는 서버별 인스턴스에서 관리합니다."));
         dialog.getDialogPane().setContent(content); dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) { settings.clientId = clientId.getText().strip(); settings.javaPath = javaPath.getText().strip(); settings.memoryMb = memory.getValue(); settings.checkForUpdates = automaticUpdates.isSelected(); persist(); }
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) { settings.javaPath = javaPath.getText().strip(); settings.memoryMb = memory.getValue(); settings.checkForUpdates = automaticUpdates.isSelected(); persist(); }
     }
 
     private void acknowledgeUpdate() throws IOException {
@@ -225,8 +222,8 @@ public final class LauncherApp extends Application {
     private void connect() {
         if (active != null && !active.isDone()) return;
         Models.ServerEntry server = list.getSelectionModel().getSelectedItem(); if (server == null) return;
-        if (settings.clientId.isBlank()) { preferences(); if (settings.clientId.isBlank()) return; }
         work(() -> {
+            MicrosoftAuth.validateClientId(BuildInfo.MICROSOFT_CLIENT_ID);
             Path instance = store.instance(server);
             FileChannel channel = FileChannel.open(instance.resolve("launcher.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             FileLock lock = null; boolean handedOff = false;
@@ -252,7 +249,7 @@ public final class LauncherApp extends Application {
                 ModSync.Plan plan = ModSync.prepare(server, info, instance);
                 if (plan.reviewRequired() && !onUi(() -> selectMods(plan))) return;
                 ModSync.apply(server, plan, instance, this::progress);
-                var player = auth.authenticate(settings.clientId, this::progress);
+                var player = auth.authenticate(BuildInfo.MICROSOFT_CLIENT_ID, this::progress);
                 Net.checkCancelled();
                 checkRunning(instance);
                 progress("게임 실행 및 서버 접속");
@@ -261,7 +258,11 @@ public final class LauncherApp extends Application {
                 Store.write(instance.resolve("game-process.json"), Store.JSON.toJson(marker));
                 FileLock runningLock = lock;
                 Thread.ofVirtual().name("game-exit-watcher").start(() -> {
-                    try { int exit = process.waitFor(); progress("게임 종료 · 코드 " + exit + " · 로그: " + instance.resolve("logs/launcher-game.log")); }
+                    try {
+                        int exit = process.waitFor();
+                        if (exit == 0) progress("게임이 종료되었습니다.");
+                        else error(new IOException("게임이 비정상 종료되었습니다. (종료 코드: " + exit + ")\n로그 파일: " + instance.resolve("logs/launcher-game.log")));
+                    }
                     catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
                     finally { try { Files.deleteIfExists(instance.resolve("game-process.json")); runningLock.release(); channel.close(); } catch (IOException ignored) {} }
                 });

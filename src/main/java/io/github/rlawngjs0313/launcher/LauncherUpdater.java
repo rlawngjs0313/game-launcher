@@ -130,7 +130,7 @@ final class LauncherUpdater {
     private Path downloadInstaller(Release release, String checksum, Consumer<String> progress) throws Exception {
         progress.accept("설치 파일 확인 및 다운로드: " + release.version());
         Path file = data.resolve("installer-cache").resolve("GameLauncher-" + release.version() + "-windows-x64-setup.exe");
-        Net.download(release.installerUrl(), file, "SHA-256", checksum, "", release.size());
+        Net.download(release.installerUrl(), file, "SHA-256", checksum, release.size());
         if (Files.size(file) != release.size()) throw new IOException("설치 파일 크기 불일치");
         return file;
     }
