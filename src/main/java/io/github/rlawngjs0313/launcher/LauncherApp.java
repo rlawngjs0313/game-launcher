@@ -24,6 +24,7 @@ public final class LauncherApp extends Application {
     private Store store;
     private Models.Settings settings;
     private MicrosoftAuth auth;
+    private LauncherUpdater updater;
     private Stage stage;
     private final ObservableList<Models.ServerEntry> servers = FXCollections.observableArrayList();
     private final ListView<Models.ServerEntry> list = new ListView<>(servers);
@@ -43,14 +44,17 @@ public final class LauncherApp extends Application {
     public static void main(String[] args) { launch(args); }
     @Override public void start(Stage stage) throws Exception {
         this.stage = stage; store = new Store(); settings = store.load(); auth = new MicrosoftAuth(store.root); servers.setAll(settings.servers);
-        Label title = new Label("Game Launcher"); title.getStyleClass().add("title");
+        updater = new LauncherUpdater(store.root);
+        if (settings.clientId.isBlank() && !BuildInfo.MICROSOFT_CLIENT_ID.isBlank()) settings.clientId = BuildInfo.MICROSOFT_CLIENT_ID;
+        Label title = new Label("Game Launcher " + BuildInfo.VERSION); title.getStyleClass().add("title");
         Label subtitle = new Label("함께 플레이할 서버를 선택하세요."); subtitle.getStyleClass().add("muted");
         VBox heading = new VBox(6, title, subtitle); HBox.setHgrow(heading, Priority.ALWAYS);
         Button preferences = button("설정", this::preferences);
+        Button updates = button("업데이트 확인", () -> checkUpdates(false));
         Button login = button("Microsoft 로그인", () -> work(() -> {
             var logged = auth.authenticate(settings.clientId, this::progress); Platform.runLater(() -> account.setText(logged.name()));
         }));
-        HBox header = new HBox(16, heading, account, login, preferences); header.setAlignment(Pos.CENTER_LEFT);
+        HBox header = new HBox(16, heading, account, updates, login, preferences); header.setAlignment(Pos.CENTER_LEFT);
         list.setCellFactory(view -> new ListCell<>() {
             @Override protected void updateItem(Models.ServerEntry server, boolean empty) {
                 super.updateItem(server, empty);
@@ -95,6 +99,8 @@ public final class LauncherApp extends Application {
         stage.setTitle("Game Launcher"); stage.setScene(scene); stage.setMinWidth(850); stage.setMinHeight(600); stage.show();
         refresh.scheduleWithFixedDelay(() -> Platform.runLater(this::refreshServers), 0, 30, TimeUnit.SECONDS);
         if (!GameInstaller.os().equals("windows")) progress("개발 환경입니다. 배포 대상은 Windows 10 이상 x64입니다.");
+        acknowledgeUpdate();
+        if (settings.checkForUpdates && !getParameters().getRaw().contains("--skip-update-check")) Platform.runLater(() -> checkUpdates(true));
     }
 
     private static String chatText(JsonElement value) {
@@ -178,9 +184,42 @@ public final class LauncherApp extends Application {
         GridPane grid = form(new String[]{"Microsoft Client ID", "게임 Java 실행 파일", "게임 메모리 (MB)"}, clientId, javaPath, memory);
         Button logout = new Button("로그아웃"); logout.setOnAction(event -> { try { auth.logout(); account.setText("로그인하지 않음"); } catch (IOException ex) { error(ex); } });
         Button folder = new Button("데이터 폴더 열기"); folder.setOnAction(event -> { try { Desktop.getDesktop().open(store.root.toFile()); } catch (IOException ex) { error(ex); } });
-        VBox content = new VBox(12, grid, new HBox(10, logout, folder), new Label("Minecraft·NeoForge 설치 파일과 모드는 서버별 인스턴스에서 관리합니다."));
+        CheckBox automaticUpdates = new CheckBox("런처 시작 시 새 버전 확인"); automaticUpdates.setSelected(settings.checkForUpdates);
+        VBox content = new VBox(12, grid, automaticUpdates, new HBox(10, logout, folder), new Label("Minecraft·NeoForge 설치 파일과 모드는 서버별 인스턴스에서 관리합니다."));
         dialog.getDialogPane().setContent(content); dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) { settings.clientId = clientId.getText().strip(); settings.javaPath = javaPath.getText().strip(); settings.memoryMb = memory.getValue(); persist(); }
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) { settings.clientId = clientId.getText().strip(); settings.javaPath = javaPath.getText().strip(); settings.memoryMb = memory.getValue(); settings.checkForUpdates = automaticUpdates.isSelected(); persist(); }
+    }
+
+    private void acknowledgeUpdate() throws IOException {
+        for (String argument : getParameters().getRaw()) if (argument.startsWith("--update-receipt=")) {
+            Path receipt = Path.of(argument.substring("--update-receipt=".length())).toAbsolutePath().normalize();
+            if (!receipt.startsWith(store.root.resolve("updates").toAbsolutePath().normalize()) || !receipt.getFileName().toString().equals("ready.marker")) throw new IOException("잘못된 업데이트 확인 경로");
+            Store.write(receipt, BuildInfo.VERSION);
+        }
+    }
+    private void checkUpdates(boolean automatic) {
+        work(() -> {
+            LauncherUpdater.Release release;
+            try { updater.cleanupOldJobs(); release = updater.latest(); }
+            catch (Exception ex) {
+                if (!automatic) throw ex;
+                progress("업데이트를 확인하지 못했습니다. 기존 버전으로 계속 사용할 수 있습니다."); return;
+            }
+            if (release == null) { if (!automatic) onUi(() -> { Alert alert = new Alert(Alert.AlertType.INFORMATION, "현재 버전: " + BuildInfo.VERSION + "\n다운로드할 새 안정 릴리즈가 없습니다.", ButtonType.OK); alert.initOwner(stage); alert.setHeaderText("업데이트 확인"); alert.showAndWait(); return null; }); return; }
+            boolean accepted = onUi(() -> {
+                ButtonType update = new ButtonType("업데이트 후 재시작", ButtonBar.ButtonData.OK_DONE);
+                ButtonType later = new ButtonType("나중에", ButtonBar.ButtonData.CANCEL_CLOSE);
+                String text = BuildInfo.VERSION + " → " + release.version() + "\n다운로드: " + Math.round(release.size() / 1024.0 / 1024.0) + " MB\n설정·계정·게임 파일은 유지됩니다.\n\n" + release.notes();
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION, text, update, later); alert.initOwner(stage); alert.setHeaderText("새 Game Launcher 버전이 있습니다");
+                alert.getDialogPane().setPrefWidth(650);
+                activeDialog = alert; try { return alert.showAndWait().orElse(later) == update; } finally { activeDialog = null; }
+            });
+            if (!accepted) return;
+            Path instances = store.root.resolve("instances");
+            if (Files.isDirectory(instances)) try (var paths = Files.list(instances)) { for (Path instance : paths.filter(Files::isDirectory).toList()) checkRunning(instance); }
+            updater.install(release, this::progress);
+            Platform.runLater(Platform::exit);
+        });
     }
 
     private void connect() {

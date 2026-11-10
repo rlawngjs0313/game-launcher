@@ -1,0 +1,111 @@
+name: Release Windows
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: launcher-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate release version and main history
+        id: version
+        shell: pwsh
+        run: |
+          $match = [regex]::Match((Get-Content version.properties -Raw), '(?m)^version=((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))\s*$')
+          if (-not $match.Success) { throw 'Invalid version.properties' }
+          $version = $match.Groups[1].Value
+          $tag = "v$version"
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -and $env:GITHUB_REF -ne 'refs/heads/main') { throw 'Run this workflow on main' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) { throw 'Tag and version.properties must match' }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'The release commit must belong to main' }
+          $commit = (git rev-parse HEAD).Trim()
+          $refs = @(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}")
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read existing release tag' }
+          if ($refs.Count -gt 0) {
+            $existing = (($refs | Select-Object -Last 1) -split '\s+')[0]
+            if ($existing -ne $commit) { throw 'Tag already points to another commit; increment the version' }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+      - name: Compile and package Java runtime with launcher
+        env:
+          MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
+        run: .\gradlew.bat clean releaseWindows -x test --no-daemon
+      - name: Check package contents and checksum
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          @('GameLauncher.exe', 'runtime/bin/java.exe', 'app/GameLauncher.cfg', 'launcher-release.properties') | ForEach-Object {
+            if (-not (Test-Path "build/package/GameLauncher/$_" -PathType Leaf)) { throw "Package file missing: $_" }
+          }
+          $zip = "build/releases/GameLauncher-$env:RELEASE_VERSION-windows-x64.zip"
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = ((Get-Content "$zip.sha256" -Raw).Trim() -split '\s+')[0]
+          if ($actual -ne $expected) { throw 'Release checksum mismatch' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: launcher-release
+          path: build/releases/*
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: launcher-release
+          path: release
+      - name: Publish complete stable release
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.build.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c -- *.sha256
+          cat > notes.md <<'NOTES'
+          Windows 10/11 x64용 Game Launcher입니다.
+
+          1. 아래 Assets에서 `GameLauncher-버전-windows-x64.zip`을 받으세요.
+          2. ZIP의 `GameLauncher` 폴더 전체를 쓰기 가능한 위치에 압축 해제하세요.
+          3. `GameLauncher.exe`를 실행하세요. Java는 포함되어 있습니다.
+
+          새 안정 릴리즈가 나오면 런처에서 업데이트를 확인하고 다운로드·교체·재시작할 수 있습니다.
+          계정, 서버 목록, 모드와 게임 데이터는 기존 사용자 데이터 폴더에 유지됩니다.
+          NOTES
+          if gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > existing.json 2>/dev/null; then
+            jq -e --arg sha "$RELEASE_COMMIT" '.isDraft == true and .targetCommitish == $sha' existing.json > /dev/null || {
+              echo 'Published releases are immutable; increment version.properties for a new release.'
+              exit 1
+            }
+          else
+            gh release create "$RELEASE_TAG" --draft --target "$RELEASE_COMMIT" --title "Game Launcher $RELEASE_VERSION" --notes-file notes.md
+          fi
+          gh release upload "$RELEASE_TAG" "GameLauncher-$RELEASE_VERSION-windows-x64.zip" "GameLauncher-$RELEASE_VERSION-windows-x64.zip.sha256" --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest --notes-file notes.md

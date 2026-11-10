@@ -49,6 +49,9 @@ final class Net {
         return JsonParser.parseString(response.body()).getAsJsonObject();
     }
     static void download(String url, Path target, String algorithm, String expected, String token) throws Exception {
+        download(url, target, algorithm, expected, token, Long.MAX_VALUE);
+    }
+    static void download(String url, Path target, String algorithm, String expected, String token, long maximumBytes) throws Exception {
         checkCancelled();
         if (Files.isRegularFile(target) && (expected == null || expected.isBlank() || hash(target, algorithm).equalsIgnoreCase(expected))) return;
         URI uri = URI.create(url);
@@ -63,8 +66,8 @@ final class Net {
             try (InputStream in = response.body()) {
                 if (response.statusCode() != 200) throw new IOException("파일 다운로드 HTTP " + response.statusCode());
                 try (OutputStream out = Files.newOutputStream(temporary)) {
-                    byte[] block = new byte[65536]; int n;
-                    while ((n = in.read(block)) != -1) { checkCancelled(); out.write(block, 0, n); }
+                    byte[] block = new byte[65536]; int n; long total = 0;
+                    while ((n = in.read(block)) != -1) { checkCancelled(); total += n; if (total > maximumBytes) throw new IOException("다운로드 파일 크기 제한 초과"); out.write(block, 0, n); }
                 }
             }
             if (expected != null && !expected.isBlank() && !hash(temporary, algorithm).equalsIgnoreCase(expected)) throw new IOException("다운로드 해시가 일치하지 않습니다: " + target.getFileName());

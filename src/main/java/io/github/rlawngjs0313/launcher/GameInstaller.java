@@ -202,7 +202,7 @@ final class GameInstaller {
         variables.put("auth_xuid", account.xuid()); variables.put("clientid", account.clientId()); variables.put("user_type", "msa"); variables.put("user_properties", "{}");
         variables.put("version_name", installed.profile()); variables.put("version_type", "release"); variables.put("game_directory", instance.toString());
         variables.put("assets_root", root.resolve("assets").toString()); variables.put("assets_index_name", version.getAsJsonObject("assetIndex").get("id").getAsString());
-        variables.put("natives_directory", natives.toString()); variables.put("launcher_name", "GameLauncher"); variables.put("launcher_version", "0.1.0");
+        variables.put("natives_directory", natives.toString()); variables.put("launcher_name", "GameLauncher"); variables.put("launcher_version", BuildInfo.VERSION);
         variables.put("classpath", String.join(File.pathSeparator, classpath)); variables.put("classpath_separator", File.pathSeparator); variables.put("library_directory", root.resolve("libraries").toString());
         variables.put("quickPlayPath", instance.resolve("quickplay.json").toString()); variables.put("quickPlayMultiplayer", address);
         Map<String, Boolean> features = Map.of("has_quick_plays_support", true, "is_quick_play_multiplayer", true);

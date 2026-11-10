@@ -1,6 +1,9 @@
 plugins { id 'application' }
 group = 'io.github.rlawngjs0313'
-version = '0.1.0'
+def releaseProperties = new Properties()
+file('version.properties').withInputStream { releaseProperties.load(it) }
+version = releaseProperties.getProperty('version')
+if (!(version.toString() ==~ /\d+\.\d+\.\d+/)) throw new GradleException('version.properties must contain a stable major.minor.patch version')
 repositories { mavenCentral() }
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 def os = System.getProperty('os.name').toLowerCase()
@@ -16,20 +19,60 @@ dependencies {
     implementation 'net.java.dev.jna:jna-platform:5.16.0'
 }
 application { mainClass = 'io.github.rlawngjs0313.launcher.Main' }
+def generateBuildInfo = tasks.register('generateBuildInfo') {
+    inputs.property('launcherVersion', project.version.toString())
+    inputs.property('microsoftClientId', providers.environmentVariable('MICROSOFT_CLIENT_ID').orElse(''))
+    outputs.dir(layout.buildDirectory.dir('generated/build-info'))
+    doLast {
+        def output = layout.buildDirectory.file('generated/build-info/launcher-build.properties').get().asFile
+        output.parentFile.mkdirs()
+        def clientId = providers.environmentVariable('MICROSOFT_CLIENT_ID').getOrElse('')
+        if (clientId && !(clientId ==~ /[a-fA-F0-9-]{36}/)) throw new GradleException('MICROSOFT_CLIENT_ID must be a public application client ID')
+        output.setText("version=${project.version}\nrepository=rlawngjs0313/game-launcher\nmicrosoftClientId=${clientId}\n", 'UTF-8')
+    }
+}
+sourceSets.main.resources.srcDir(generateBuildInfo)
 tasks.named('jar') {
     doFirst { manifest.attributes('Main-Class': application.mainClass.get(), 'Class-Path': configurations.runtimeClasspath.files.collect { it.name }.join(' ')) }
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
 tasks.register('packageWindows', Exec) {
     dependsOn installDist
-    onlyIf { os.contains('win') && !arm }
+    inputs.property('launcherVersion', project.version.toString())
     doFirst {
+        if (!os.contains('win') || arm) throw new GradleException('Windows x64 JDK 21 is required for packaging. Use the Release Windows workflow on GitHub.')
+        delete(layout.buildDirectory.dir('package/GameLauncher'))
         commandLine "${System.getProperty('java.home')}/bin/jpackage.exe",
             '--type', 'app-image', '--name', 'GameLauncher', '--app-version', project.version,
             '--input', layout.buildDirectory.dir('install/game-launcher/lib').get().asFile,
             '--main-jar', "${project.name}-${project.version}.jar",
             '--main-class', application.mainClass.get(), '--dest', layout.buildDirectory.dir('package').get().asFile,
             '--add-modules', 'java.base,java.desktop,java.net.http,java.logging,java.management,java.naming,java.xml,jdk.httpserver,jdk.crypto.ec,jdk.unsupported',
-            '--java-options', '-Dfile.encoding=UTF-8'
+            '--jlink-options', '--strip-debug --no-header-files --no-man-pages',
+            '--java-options', '-Dfile.encoding=UTF-8',
+            '--java-options', '-Dgame.launcher.home=$APPDIR/..'
+    }
+    doLast {
+        def marker = layout.buildDirectory.file('package/GameLauncher/launcher-release.properties').get().asFile
+        marker.setText("applicationId=rlawngjs0313.game-launcher\nversion=${project.version}\n", 'UTF-8')
+    }
+}
+def windowsZip = tasks.register('releaseWindowsZip', Zip) {
+    dependsOn packageWindows
+    from(layout.buildDirectory.dir('package')) { include 'GameLauncher/**' }
+    destinationDirectory = layout.buildDirectory.dir('releases')
+    archiveFileName = "GameLauncher-${project.version}-windows-x64.zip"
+}
+tasks.register('releaseWindows') {
+    dependsOn windowsZip
+    doLast {
+        def archive = windowsZip.get().archiveFile.get().asFile
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        archive.withInputStream { stream ->
+            byte[] block = new byte[65536]
+            int count
+            while ((count = stream.read(block)) != -1) digest.update(block, 0, count)
+        }
+        new File(archive.parentFile, archive.name + '.sha256').setText(digest.digest().encodeHex().toString() + '  ' + archive.name + '\n', 'UTF-8')
     }
 }

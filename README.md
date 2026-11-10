@@ -3,6 +3,43 @@
 Windows 10 이상 **x64**용 JavaFX Minecraft 런처. Java 21과 Gradle을 사용합니다.
 ARM64 네이티브 패키징은 이번 구현 범위에서 제외합니다.
 
+## Windows에서 다운로드
+
+[최신 릴리즈 다운로드](https://github.com/rlawngjs0313/game-launcher/releases/latest)
+
+1. Assets에서 `GameLauncher-버전-windows-x64.zip`을 받습니다.
+2. `GameLauncher` 폴더 전체를 다운로드/문서 등 **쓰기가 가능한 사용자 폴더**에 압축 해제합니다.
+3. `GameLauncher.exe`를 실행합니다. 별도의 Java 설치는 필요하지 않습니다.
+
+`Source code.zip`은 개발용 소스이므로 실행 파일 ZIP을 선택하세요.
+일반 사용자는 Gradle이나 JDK를 설치할 필요가 없습니다.
+
+## 런처 업데이트
+
+기본적으로 런처 시작 시 GitHub의 최신 안정 릴리즈를 한 번 확인합니다.
+홈의 **업데이트 확인** 버튼으로 직접 확인할 수도 있습니다.
+현재보다 높은 `major.minor.patch` 버전일 때 변경 내용과 다운로드 용량을 표시합니다.
+
+**업데이트 후 재시작**을 누르면 다음 순서로 진행합니다.
+
+```text
+ZIP 다운로드 → SHA-256·크기 검증 → 새 앱 압축 해제
+→ 별도 Java 도우미 시작 → 현재 런처 종료
+→ 실행 파일·포함 Java 교체 → 새 런처 시작
+```
+
+새 런처가 시작됐다는 확인을 받지 못하면 이전 실행 파일 폴더를 복원합니다.
+이를 위한 이전 앱 폴더는 업데이트 성공 후 정리합니다. 모드 백업 기능과는 별개입니다.
+`%LOCALAPPDATA%/GameLauncher`의 계정·서버 목록·게임·모드는 업데이트 대상에 포함하지 않습니다.
+실행 중인 게임은 먼저 종료해야 업데이트할 수 있습니다.
+다운로드/검증/쓰기 권한 확인에 실패하면 현재 런처를 종료하지 않습니다.
+인터넷 연결 실패나 새 릴리즈 부재는 기존 버전의 사용을 막지 않습니다.
+
+자동 교체는 이 기능이 포함된 Windows 릴리즈 앱에서 지원합니다.
+기존 0.1.0 개발 빌드는 최초 한 번 새 ZIP을 직접 받아야 합니다.
+업데이트 실패 기록은 `%LOCALAPPDATA%/GameLauncher/updates/update-*/`에 남깁니다.
+개발 실행(`gradlew run`)에서는 버전 확인만 가능하며 앱 폴더를 교체하지 않습니다.
+
 ## 시작
 
 ```powershell
@@ -19,6 +56,35 @@ Windows x64에서 Java가 없는 PC에 전달할 앱 이미지 만들기:
 `build/package/GameLauncher` **폴더 전체**를 ZIP으로 전달합니다. exe만 전달하면 안 됩니다.
 앱 이미지에는 런처 실행용 Java가 포함됩니다. 게임용 Java는 별도로 설치합니다.
 패키징은 대상 Windows에서 실행해야 하며 ARM64 네이티브 이미지를 만들지 않습니다.
+
+배포 ZIP과 체크섬을 로컬에서 만들려면:
+
+```powershell
+.\gradlew.bat releaseWindows -x test
+```
+
+출력 위치는 `build/releases/`입니다.
+
+## 새 버전 릴리즈하기
+
+버전 원본은 `version.properties` 하나입니다. UI, 빌드 정보, ZIP 파일명과 앱 버전은 여기서 생성합니다.
+
+1. `version.properties`의 버전을 올립니다. 예: `version=0.3.0`.
+2. 변경 사항을 `main`에 커밋하고 push합니다.
+3. GitHub Actions → **Release Windows** → **Run workflow**, branch `main`을 선택합니다.
+4. Windows 빌드와 패키징 성공 후 해당 버전의 GitHub Release가 게시됩니다.
+
+또는 `main`의 해당 커밋에 `v0.3.0` 태그를 push해 같은 작업을 실행할 수 있습니다.
+태그와 `version.properties`는 일치해야 합니다. 이미 게시한 릴리즈 파일은 덮어쓰지 않으며,
+수정판은 새 버전으로 게시합니다. 브랜치는 `main` 하나를 사용합니다.
+게시 중인 릴리즈는 draft 상태로 파일을 모두 올린 뒤 공개하므로 불완전한 파일 묶음이
+업데이트 대상으로 선택되지 않습니다.
+
+친구들이 Microsoft Client ID를 직접 입력하지 않게 하려면 저장소의
+Settings → Secrets and variables → Actions → **Variables**에
+`MICROSOFT_CLIENT_ID`를 설정한 후 릴리즈하세요. 이는 공개 애플리케이션 ID이며
+Client Secret이나 개인 액세스 토큰을 넣는 항목이 아닙니다.
+설정된 Client ID는 앱의 기본값으로 포함되고, 없으면 기존처럼 런처 설정에서 입력합니다.
 
 ## 최초 설정
 
@@ -97,3 +163,4 @@ Backend의 Java 소스를 런타임에 직접 참조하지 않습니다.
 검증 범위는 사용자 요청에 따라 구현 및 컴파일/구문 검사입니다.
 Microsoft 로그인, NeoForge 설치, Windows 패키징, 실제 서버 접속은 사용자 실사용 검증 대상입니다.
 빌드에 처음 필요한 Maven/Gradle 의존성을 받으려면 인터넷 연결이 필요합니다.
+GitHub 릴리즈 확인에는 개인 액세스 토큰을 앱에 포함하지 않습니다. 배포 저장소는 공개여야 합니다.
