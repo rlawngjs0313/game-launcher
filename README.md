@@ -106,6 +106,8 @@ ID가 없으면 개발용 컴파일은 가능하지만 Windows 패키징은 실�
    개인 Microsoft 계정 로그인과 데스크톱 리디렉션
    `http://localhost`를 설정합니다. 로그인은 브라우저 + Authorization Code/PKCE입니다.
    Client Secret은 사용하지 않습니다. Minecraft Services API 이용 가능 여부는 해당 앱 등록 상태에 따라 달라집니다.
+   브라우저 인증 응답 후에는 민트색 안내 화면이 표시되고 런처 창으로 자동 복귀를 요청합니다.
+   최종 로그인 결과는 런처에서 확인하세요. OS가 창 전환을 제한하면 작업 표시줄에서 런처를 직접 선택합니다.
 2. 게임 Java 경로는 비우면 필요한 버전의 Adoptium JRE를 자동 설치합니다.
    직접 지정할 때는 서버 Minecraft 버전이 요구하는 Java의 `java.exe` 전체 경로를 입력합니다.
 3. 서버 추가 → 이름, 게임 주소, API 기본 주소, 서버 ID 입력.

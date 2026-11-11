@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#69c9a5">
+  <meta name="description" content="Game Launcher의 Microsoft 계정 연결 안내입니다.">
+  <link rel="icon" href="data:,">
+  <title>{{title}} · Game Launcher</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #182820; background: #f6f8f7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 32px 20px; }
+    main { width: min(100%, 560px); overflow: hidden; border: 1px solid #dfe7e1; border-radius: 20px; background: white; box-shadow: 0 16px 56px #183d2610; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 32px; background: #69c9a5; color: #102f22; }
+    .brand { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
+    .category { font-size: 13px; }
+    .content { padding: 40px 40px 32px; }
+    .symbol { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 24px; border: 1px solid #c7e6d4; border-radius: 50%; background: #edf7f0; color: #237955; font-size: 28px; font-weight: 600; }
+    .failed .symbol { border-color: #eed3c9; background: #fff4ee; color: #a4472f; }
+    .badge { margin: 0 0 10px; color: #52665b; font-size: 13px; font-weight: 600; }
+    h1 { margin: 0; font-size: clamp(25px, 5.5vw, 32px); line-height: 1.4; letter-spacing: -1px; word-break: keep-all; overflow-wrap: anywhere; }
+    .description { margin: 14px 0 28px; color: #5d6c64; font-size: 15px; line-height: 1.8; word-break: keep-all; }
+    .next { padding: 18px 20px; border: 1px solid #e2e9e4; border-radius: 10px; background: #f6f8f7; }
+    .next strong { display: block; font-size: 14px; line-height: 1.7; word-break: keep-all; }
+    .next p { margin: 4px 0 0; color: #5d6c64; font-size: 13px; line-height: 1.8; word-break: keep-all; }
+    footer { padding: 20px 32px; border-top: 1px solid #e6ece8; color: #5d6c64; font-size: 13px; line-height: 1.7; text-align: center; }
+    @media (max-width: 420px) { body { padding: 20px 16px; } header { padding: 20px 24px; } .content { padding: 30px 24px; } footer { padding: 18px 24px; } }
+  </style>
+</head>
+<body>
+  <main class="{{status}}" aria-labelledby="heading">
+    <header><span class="brand">Game Launcher</span><span class="category">계정 연결</span></header>
+    <div class="content">
+      <div class="symbol" aria-hidden="true">{{symbol}}</div>
+      <p class="badge">{{badge}}</p>
+      <h1 id="heading">{{title}}</h1>
+      <p class="description">{{description}}</p>
+      <div class="next"><strong>{{next}}</strong><p>{{hint}}</p></div>
+    </div>
+    <footer>런처가 앞으로 열리지 않으면 작업 표시줄에서 선택하세요.<br>이 탭은 닫아도 됩니다.</footer>
+  </main>
+  <script>history.replaceState(null, "", location.pathname);</script>
+</body>
+</html>

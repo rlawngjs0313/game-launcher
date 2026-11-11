@@ -26,7 +26,7 @@ final class MicrosoftAuth {
             throw new IOException("이 런처에 Microsoft 로그인 설정이 포함되지 않았습니다. 배포자에게 문의하세요.");
     }
 
-    synchronized Account authenticate(String clientId, Consumer<String> progress) throws Exception {
+    synchronized Account authenticate(String clientId, Consumer<String> progress, Runnable onBrowserComplete) throws Exception {
         validateClientId(clientId);
         if (current != null && current.clientId().equals(clientId) && current.expires().isAfter(Instant.now().plusSeconds(90))) return current;
         JsonObject msa = null;
@@ -36,7 +36,7 @@ final class MicrosoftAuth {
             try { msa = form(Map.of("client_id", clientId, "grant_type", "refresh_token", "refresh_token", saved.get("refreshToken").getAsString(), "scope", "XboxLive.signin offline_access")); }
             catch (AuthFailure failure) { progress.accept("로그인을 다시 진행하세요."); }
         }
-        if (msa == null) msa = browserLogin(clientId, progress);
+        if (msa == null) msa = browserLogin(clientId, progress, onBrowserComplete);
         if (msa.has("refresh_token")) save(clientId, msa.get("refresh_token").getAsString());
         progress.accept("Xbox 및 Minecraft 계정 확인");
         JsonObject properties = new JsonObject(); properties.addProperty("AuthMethod", "RPS"); properties.addProperty("SiteName", "user.auth.xboxlive.com"); properties.addProperty("RpsTicket", "d=" + msa.get("access_token").getAsString());
@@ -56,7 +56,7 @@ final class MicrosoftAuth {
         return current;
     }
 
-    private JsonObject browserLogin(String clientId, Consumer<String> progress) throws Exception {
+    private JsonObject browserLogin(String clientId, Consumer<String> progress, Runnable onBrowserComplete) throws Exception {
         byte[] random = new byte[32]; new SecureRandom().nextBytes(random);
         String state = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
         new SecureRandom().nextBytes(random);
@@ -65,21 +65,7 @@ final class MicrosoftAuth {
         CompletableFuture<String> result = new CompletableFuture<>();
         HttpServer callback = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         String redirect = "http://localhost:" + callback.getAddress().getPort() + "/";
-        callback.createContext("/", exchange -> {
-            try {
-                Map<String, String> query = new HashMap<>();
-                String raw = exchange.getRequestURI().getRawQuery();
-                if (raw != null) for (String part : raw.split("&")) { String[] pair = part.split("=", 2); query.put(URLDecoder.decode(pair[0], StandardCharsets.UTF_8), pair.length == 2 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : ""); }
-                boolean valid = exchange.getRequestMethod().equals("GET") && MessageDigest.isEqual(state.getBytes(StandardCharsets.UTF_8), query.getOrDefault("state", "").getBytes(StandardCharsets.UTF_8));
-                String message;
-                if (!valid) message = "잘못된 로그인 요청입니다.";
-                else if (query.containsKey("code")) { result.complete(query.get("code")); message = "로그인이 완료됐습니다. 런처로 돌아가세요."; }
-                else { result.completeExceptionally(new IOException("로그인이 취소되었거나 승인되지 않았습니다.")); message = "로그인을 완료하지 못했습니다. 런처에서 다시 시도하세요."; }
-                byte[] body = message.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-                exchange.sendResponseHeaders(valid ? 200 : 400, body.length); exchange.getResponseBody().write(body);
-            } finally { exchange.close(); }
-        });
+        callback.createContext("/", exchange -> LoginCallback.handle(exchange, state, result, onBrowserComplete));
         callback.start();
         try {
             String query = encode(Map.of("client_id", clientId, "response_type", "code", "redirect_uri", redirect,
